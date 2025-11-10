@@ -17,13 +17,19 @@ import { useEffect, useState } from "react"
 
 export function UserMenu() {
   const router = useRouter()
-  const supabase = createBrowserClient()
   const [userEmail, setUserEmail] = useState<string>("")
   const [userName, setUserName] = useState<string>("Usuário")
 
   useEffect(() => {
     const getUser = async () => {
       try {
+        const supabase = createBrowserClient()
+
+        if (!supabase) {
+          console.error("[v0] Cliente Supabase não disponível")
+          return
+        }
+
         const {
           data: { user },
           error,
@@ -40,14 +46,20 @@ export function UserMenu() {
         }
       } catch (err) {
         console.error("[v0] Erro ao buscar usuário:", err)
-        // Não mostra erro para o usuário, apenas loga no console
       }
     }
     getUser()
-  }, [supabase])
+  }, [])
 
   const handleLogout = async () => {
     try {
+      const supabase = createBrowserClient()
+
+      if (!supabase) {
+        router.push("/auth/login")
+        return
+      }
+
       await supabase.auth.signOut()
       router.push("/auth/login")
       router.refresh()

@@ -5,8 +5,11 @@ export function createBrowserClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    console.error("[v0] Variáveis de ambiente do Supabase não configuradas")
-    throw new Error("Configuração do Supabase incompleta")
+    if (typeof window !== "undefined") {
+      console.error("[v0] Variáveis de ambiente do Supabase não configuradas")
+    }
+    // Retorna um cliente vazio durante o build/pre-render
+    return null
   }
 
   return createSupabaseBrowserClient(supabaseUrl, supabaseAnonKey)

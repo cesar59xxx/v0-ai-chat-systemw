@@ -45,6 +45,10 @@ export default function SignUpPage() {
     try {
       const supabase = createBrowserClient()
 
+      if (!supabase) {
+        throw new Error("Erro de configuração. Entre em contato com o suporte.")
+      }
+
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
