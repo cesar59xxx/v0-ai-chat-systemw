@@ -5,11 +5,14 @@ export function createBrowserClient() {
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
 
   if (!supabaseUrl || !supabaseAnonKey) {
-    if (typeof window !== "undefined") {
-      console.error("[v0] Variáveis de ambiente do Supabase não configuradas")
-    }
-    // Retorna um cliente vazio durante o build/pre-render
-    return null
+    const missingVars = []
+    if (!supabaseUrl) missingVars.push("NEXT_PUBLIC_SUPABASE_URL")
+    if (!supabaseAnonKey) missingVars.push("NEXT_PUBLIC_SUPABASE_ANON_KEY")
+
+    throw new Error(
+      `Variáveis de ambiente não configuradas: ${missingVars.join(", ")}. ` +
+        `Configure estas variáveis no painel da Vercel em Settings > Environment Variables.`,
+    )
   }
 
   return createSupabaseBrowserClient(supabaseUrl, supabaseAnonKey)

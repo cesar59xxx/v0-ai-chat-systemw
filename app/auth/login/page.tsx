@@ -28,10 +28,6 @@ export default function LoginPage() {
     try {
       const supabase = createBrowserClient()
 
-      if (!supabase) {
-        throw new Error("Erro de configuração. Entre em contato com o suporte.")
-      }
-
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -50,12 +46,12 @@ export default function LoginPage() {
     } catch (err: any) {
       console.error("[v0] Erro no login:", err)
 
-      if (err.message?.includes("Invalid login credentials")) {
+      if (err.message?.includes("Variáveis de ambiente não configuradas")) {
+        setError("Sistema não configurado. Entre em contato com o administrador.")
+      } else if (err.message?.includes("Invalid login credentials")) {
         setError("Email ou senha incorretos")
       } else if (err.message?.includes("Email not confirmed")) {
         setError("Por favor, confirme seu email antes de fazer login")
-      } else if (err.message?.includes("configuração")) {
-        setError("Erro de configuração. Entre em contato com o suporte.")
       } else {
         setError(err.message || "Erro ao fazer login. Tente novamente.")
       }

@@ -45,10 +45,6 @@ export default function SignUpPage() {
     try {
       const supabase = createBrowserClient()
 
-      if (!supabase) {
-        throw new Error("Erro de configuração. Entre em contato com o suporte.")
-      }
-
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
@@ -72,7 +68,13 @@ export default function SignUpPage() {
         router.refresh()
       }, 2000)
     } catch (err: any) {
-      setError(err.message || "Erro ao criar conta")
+      console.error("[v0] Erro no sign-up:", err)
+
+      if (err.message?.includes("Variáveis de ambiente não configuradas")) {
+        setError("Sistema não configurado. Entre em contato com o administrador.")
+      } else {
+        setError(err.message || "Erro ao criar conta")
+      }
     } finally {
       setLoading(false)
     }
