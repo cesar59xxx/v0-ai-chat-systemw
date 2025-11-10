@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid JSON", receivedBody: rawBody }, { status: 400 })
     }
 
-    const supabase = createAdminClient()
+    const supabase = await createAdminClient()
 
     // Extrair dados do payload
     const instanceIdentifier = data.instance_phone_number || data.phone_number || data.instance || data.instanceName

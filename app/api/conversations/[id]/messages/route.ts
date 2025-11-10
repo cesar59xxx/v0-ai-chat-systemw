@@ -3,7 +3,7 @@ import { createAdminClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createAdminClient()
+    const supabase = await createAdminClient()
     const { id } = params
 
     console.log("[v0] GET /api/conversations/[id]/messages - Starting")
@@ -52,7 +52,7 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = createAdminClient()
+    const supabase = await createAdminClient()
     const { id } = params
     const { content, sender_type, instance_name, instance_number } = await request.json()
 
