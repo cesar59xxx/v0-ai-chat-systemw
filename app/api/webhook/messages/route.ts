@@ -27,7 +27,6 @@ export async function POST(request: Request) {
 
     const supabase = await createAdminClient()
 
-    // Extrair dados do payload
     const instanceIdentifier = data.instance_phone_number || data.phone_number || data.instance || data.instanceName
     const contactNumber = data.Numero?.replace("@s.whatsapp.net", "") || data.Numero || data.contact_number
     const messageContent = data.Mensagem || data.message || data.content
@@ -50,10 +49,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
     }
 
-    // Buscar instância pelo nome
+    // Buscar instância pelo nome e pegar o user_id
     const { data: instance, error: instanceError } = await supabase
       .from("instances")
-      .select("id, name, phone_number")
+      .select("id, name, phone_number, user_id")
       .ilike("name", `%${instanceIdentifier}%`)
       .limit(1)
       .single()
@@ -65,12 +64,12 @@ export async function POST(request: Request) {
 
     console.log("[v0] Instance found:", instance)
 
-    // Buscar ou criar conversa
     let { data: conversation, error: conversationError } = await supabase
       .from("conversations")
       .select("id")
-      .eq("instance_name", instance.name)
+      .eq("instance_id", instance.id)
       .eq("contact_number", contactNumber)
+      .eq("user_id", instance.user_id)
       .single()
 
     if (conversationError || !conversation) {
@@ -78,6 +77,7 @@ export async function POST(request: Request) {
 
       const conversationData = {
         instance_id: instance.id,
+        user_id: instance.user_id,
         instance_name: instance.name,
         instance_number: instance.phone_number,
         contact_number: contactNumber,
@@ -102,24 +102,32 @@ export async function POST(request: Request) {
       console.log("[v0] Conversation created:", conversation.id)
     } else {
       console.log("[v0] Conversation found:", conversation.id)
+
+      await supabase
+        .from("conversations")
+        .update({
+          last_message: messageContent,
+          last_message_at: new Date().toISOString(),
+          unread_count: direction === "RECEIVED" ? supabase.rpc("increment", { row_id: conversation.id }) : 0,
+        })
+        .eq("id", conversation.id)
     }
 
     const messageData = {
       conversation_id: conversation.id,
-      instance_name: instance.name,
-      instance_number: instance.phone_number,
+      instance_id: instance.id,
+      user_id: instance.user_id,
       content: messageContent,
-      sender_type: direction === "SEND" ? "agent" : "customer",
+      sender_type: direction === "SEND" ? "agent" : "client",
       sender_number: contactNumber,
       contact_name: contactName,
       message_id: messageId,
       is_read: direction === "SEND",
     }
 
-    const tableName = direction === "SEND" ? "sent_messages" : "received_messages"
-    console.log("[v0] Inserting into", tableName, ":", messageData)
+    console.log("[v0] Inserting message:", messageData)
 
-    const { data: message, error: messageError } = await supabase.from(tableName).insert(messageData).select().single()
+    const { data: message, error: messageError } = await supabase.from("messages").insert(messageData).select().single()
 
     if (messageError) {
       console.error("[v0] Error saving message:", messageError)
@@ -135,7 +143,6 @@ export async function POST(request: Request) {
       data: {
         conversationId: conversation.id,
         messageId: message.id,
-        table: tableName,
       },
     })
   } catch (error) {

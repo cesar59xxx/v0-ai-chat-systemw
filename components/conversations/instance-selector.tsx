@@ -13,11 +13,11 @@ type Instance = {
 }
 
 interface InstanceSelectorProps {
-  selectedInstanceName: string | null
-  onSelectInstance: (instanceName: string | null) => void
+  selectedInstanceId: string | null
+  onSelectInstance: (instanceId: string | null) => void
 }
 
-export function InstanceSelector({ selectedInstanceName, onSelectInstance }: InstanceSelectorProps) {
+export function InstanceSelector({ selectedInstanceId, onSelectInstance }: InstanceSelectorProps) {
   const [instances, setInstances] = useState<Instance[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -59,10 +59,10 @@ export function InstanceSelector({ selectedInstanceName, onSelectInstance }: Ins
   }
 
   return (
-    <div className="p-4 border-b border-border">
+    <div className="p-4">
       <div className="flex items-center gap-2 overflow-x-auto pb-2">
         <Button
-          variant={selectedInstanceName === null ? "default" : "outline"}
+          variant={selectedInstanceId === null ? "default" : "outline"}
           size="sm"
           onClick={() => onSelectInstance(null)}
           className="flex-shrink-0"
@@ -72,9 +72,9 @@ export function InstanceSelector({ selectedInstanceName, onSelectInstance }: Ins
         {instances.map((instance) => (
           <Button
             key={instance.id}
-            variant={selectedInstanceName === instance.name ? "default" : "outline"}
+            variant={selectedInstanceId === instance.id ? "default" : "outline"}
             size="sm"
-            onClick={() => onSelectInstance(instance.name)}
+            onClick={() => onSelectInstance(instance.id)}
             className="flex-shrink-0 gap-2"
           >
             <Smartphone className="w-4 h-4" />

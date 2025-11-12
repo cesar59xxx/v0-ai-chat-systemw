@@ -4,15 +4,29 @@ import { createClient } from "@/lib/supabase/server"
 export async function GET(request: Request) {
   try {
     const supabase = await createClient()
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { searchParams } = new URL(request.url)
-    const instanceName = searchParams.get("instance_name")?.trim() // Added trim to remove whitespace
+    const instanceId = searchParams.get("instance_id")
 
-    console.log("[v0] API: Fetching conversations, instance_name filter:", instanceName)
+    console.log("[v0] API: Fetching conversations for user:", user.id)
 
-    let query = supabase.from("conversations").select("*").order("last_message_at", { ascending: false })
+    let query = supabase
+      .from("conversations")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("last_message_at", { ascending: false })
 
-    if (instanceName) {
-      query = query.ilike("instance_name", `%${instanceName}%`)
+    if (instanceId) {
+      query = query.eq("instance_id", instanceId)
     }
 
     const { data: conversations, error } = await query
@@ -26,13 +40,10 @@ export async function GET(request: Request) {
     }
 
     console.log("[v0] API: Conversations found:", conversations?.length || 0)
-    if (conversations && conversations.length > 0) {
-      console.log("[v0] API: First conversation:", conversations[0])
-    }
 
     return NextResponse.json(conversations || [])
   } catch (error) {
     console.error("[v0] API: Error fetching conversations:", error)
-    return NextResponse.json([])
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }

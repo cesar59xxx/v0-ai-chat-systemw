@@ -11,16 +11,16 @@ export async function GET() {
     } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json([])
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const { data: instances, error } = await supabase
       .from("instances")
       .select("*")
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false })
 
     if (error) {
-      // This error is expected when database hasn't been set up yet
       if (error.code !== "PGRST205") {
         console.error("[v0] Error fetching instances:", error)
       }
@@ -30,7 +30,7 @@ export async function GET() {
     return NextResponse.json(instances || [])
   } catch (error) {
     console.error("[v0] Error fetching instances:", error)
-    return NextResponse.json([])
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 })
   }
 }
 
@@ -50,7 +50,12 @@ export async function POST(request: Request) {
 
     const { data: instance, error: instanceError } = await supabase
       .from("instances")
-      .insert({ name, phone_number, user_id: user.id, status: "connecting" })
+      .insert({
+        name,
+        phone_number,
+        user_id: user.id,
+        status: "connecting",
+      })
       .select()
       .single()
 

@@ -1,49 +1,50 @@
 import { NextResponse } from "next/server"
-import { createAdminClient } from "@/lib/supabase/server"
+import { createClient } from "@/lib/supabase/server"
 
 export async function GET(request: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createAdminClient()
+    const supabase = await createClient()
     const { id } = params
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
     console.log("[v0] GET /api/conversations/[id]/messages - Starting")
     console.log("[v0] Conversation ID:", id)
 
-    const [sentResult, receivedResult] = await Promise.all([
-      supabase.from("sent_messages").select("*").eq("conversation_id", id).order("created_at", { ascending: true }),
-      supabase.from("received_messages").select("*").eq("conversation_id", id).order("created_at", { ascending: true }),
-    ])
+    const { data: conversation, error: convError } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("id", id)
+      .eq("user_id", user.id)
+      .single()
 
-    if (sentResult.error) {
-      console.error("[v0] Error fetching sent messages:", sentResult.error)
+    if (convError || !conversation) {
+      console.error("[v0] Conversation not found or unauthorized:", convError)
+      return NextResponse.json({ error: "Conversation not found" }, { status: 404 })
     }
 
-    if (receivedResult.error) {
-      console.error("[v0] Error fetching received messages:", receivedResult.error)
+    const { data: messages, error: messagesError } = await supabase
+      .from("messages")
+      .select("*")
+      .eq("conversation_id", id)
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: true })
+
+    if (messagesError) {
+      console.error("[v0] Error fetching messages:", messagesError)
+      return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })
     }
 
-    // Mesclar e ordenar mensagens por data
-    const sentMessages = (sentResult.data || []).map((msg) => ({
-      ...msg,
-      direction: "SEND",
-      sender_type: "agent",
-    }))
+    console.log("[v0] Messages found:", messages?.length || 0)
 
-    const receivedMessages = (receivedResult.data || []).map((msg) => ({
-      ...msg,
-      direction: "RECEIVED",
-      sender_type: "customer",
-    }))
-
-    const allMessages = [...sentMessages, ...receivedMessages].sort(
-      (a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime(),
-    )
-
-    console.log("[v0] Sent messages:", sentMessages.length)
-    console.log("[v0] Received messages:", receivedMessages.length)
-    console.log("[v0] Total messages:", allMessages.length)
-
-    return NextResponse.json(allMessages)
+    return NextResponse.json(messages || [])
   } catch (error) {
     console.error("[v0] Error in GET /api/conversations/[id]/messages:", error)
     return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })
@@ -52,28 +53,37 @@ export async function GET(request: Request, { params }: { params: { id: string }
 
 export async function POST(request: Request, { params }: { params: { id: string } }) {
   try {
-    const supabase = await createAdminClient()
+    const supabase = await createClient()
     const { id } = params
-    const { content, sender_type, instance_name, instance_number } = await request.json()
+    const { content } = await request.json()
+
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
 
     console.log("[v0] POST /api/conversations/[id]/messages - Starting")
-    console.log("[v0] Request body:", { content, sender_type, instance_name, instance_number })
 
     const { data: conversation, error: convError } = await supabase
       .from("conversations")
       .select("*")
       .eq("id", id)
+      .eq("user_id", user.id)
       .single()
 
     if (convError || !conversation) {
-      console.error("[v0] Conversation not found:", convError)
+      console.error("[v0] Conversation not found or unauthorized:", convError)
       return NextResponse.json({ error: "Conversation not found" }, { status: 404 })
     }
 
     const messageData = {
       conversation_id: id,
-      instance_name: instance_name || conversation.instance_name,
-      instance_number: instance_number || conversation.instance_number,
+      instance_id: conversation.instance_id,
+      user_id: user.id,
       content,
       sender_type: "agent",
       sender_number: conversation.contact_number,
@@ -81,13 +91,9 @@ export async function POST(request: Request, { params }: { params: { id: string 
       is_read: true,
     }
 
-    console.log("[v0] Inserting into sent_messages:", messageData)
+    console.log("[v0] Inserting message:", messageData)
 
-    const { data: message, error: messageError } = await supabase
-      .from("sent_messages")
-      .insert(messageData)
-      .select()
-      .single()
+    const { data: message, error: messageError } = await supabase.from("messages").insert(messageData).select().single()
 
     if (messageError) {
       console.error("[v0] Failed to insert message:", messageError)
@@ -95,6 +101,15 @@ export async function POST(request: Request, { params }: { params: { id: string 
     }
 
     console.log("[v0] Message inserted successfully:", message.id)
+
+    await supabase
+      .from("conversations")
+      .update({
+        last_message: content,
+        last_message_at: new Date().toISOString(),
+      })
+      .eq("id", id)
+      .eq("user_id", user.id)
 
     // Enviar para webhook
     try {
@@ -111,11 +126,8 @@ export async function POST(request: Request, { params }: { params: { id: string 
         message: {
           id: message.id,
           content: message.content,
-          direction: "SEND",
           sender_type: "agent",
           created_at: message.created_at,
-          contact_name: message.contact_name,
-          sender_number: message.sender_number,
         },
       }
 
@@ -132,7 +144,7 @@ export async function POST(request: Request, { params }: { params: { id: string 
       console.error("[v0] Failed to send to webhook:", webhookError)
     }
 
-    return NextResponse.json({ ...message, direction: "SEND", sender_type: "agent" })
+    return NextResponse.json(message)
   } catch (error) {
     console.error("[v0] Error in POST /api/conversations/[id]/messages:", error)
     return NextResponse.json({ error: "Failed to create message" }, { status: 500 })

@@ -58,6 +58,7 @@ Após o deploy, execute os scripts SQL na ordem:
 2. `scripts/040_restructure_messages_system.sql` - Sistema de mensagens
 3. `scripts/041_unify_messages_table.sql` - Unificação de mensagens
 4. `scripts/042_enable_realtime_on_messages.sql` - Ativar realtime
+5. **`scripts/043_enable_rls_and_multitenancy.sql` - Isolamento multitenancy (IMPORTANTE)**
 
 ## Verificação Pós-Deploy
 
@@ -65,6 +66,7 @@ Após o deploy, execute os scripts SQL na ordem:
 2. Teste o login/cadastro
 3. Verifique as conversas e mensagens
 4. Confirme que o realtime está funcionando
+5. **Teste o isolamento criando duas contas diferentes e verificando que dados não são compartilhados**
 
 ## Troubleshooting
 
@@ -80,6 +82,17 @@ Após o deploy, execute os scripts SQL na ordem:
 ### Realtime não funciona
 - Execute o script `042_enable_realtime_on_messages.sql`
 - Verifique as políticas RLS no Supabase
+
+### Erro: "Unauthorized" ou dados de outras contas aparecem
+- Execute o script `043_enable_rls_and_multitenancy.sql` imediatamente
+- Verifique que RLS está habilitado em todas as tabelas
+- Consulte a documentação em `MULTITENANCY.md`
+
+## Segurança
+
+O sistema implementa isolamento completo de dados usando Row Level Security (RLS). Para mais detalhes, consulte:
+- [MULTITENANCY.md](./MULTITENANCY.md) - Documentação completa sobre isolamento de dados
+- [Supabase RLS](https://supabase.com/docs/guides/auth/row-level-security)
 
 ## Suporte
 

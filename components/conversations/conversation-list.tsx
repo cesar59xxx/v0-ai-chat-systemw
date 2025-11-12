@@ -17,11 +17,11 @@ type Conversation = {
 
 interface ConversationListProps {
   selectedId: string | null
-  filterInstanceName: string | null
+  filterInstanceId: string | null
   onSelectConversation: (id: string, instanceName: string | null) => void
 }
 
-export function ConversationList({ selectedId, filterInstanceName, onSelectConversation }: ConversationListProps) {
+export function ConversationList({ selectedId, filterInstanceId, onSelectConversation }: ConversationListProps) {
   const [conversations, setConversations] = useState<Conversation[]>([])
   const [search, setSearch] = useState("")
   const [loading, setLoading] = useState(true)
@@ -30,12 +30,12 @@ export function ConversationList({ selectedId, filterInstanceName, onSelectConve
     fetchConversations()
     const interval = setInterval(fetchConversations, 10000)
     return () => clearInterval(interval)
-  }, [filterInstanceName])
+  }, [filterInstanceId])
 
   async function fetchConversations() {
     try {
-      const url = filterInstanceName
-        ? `/api/conversations?instance_name=${encodeURIComponent(filterInstanceName)}`
+      const url = filterInstanceId
+        ? `/api/conversations?instance_id=${encodeURIComponent(filterInstanceId)}`
         : "/api/conversations"
 
       const response = await fetch(url)
@@ -125,7 +125,7 @@ export function ConversationList({ selectedId, filterInstanceName, onSelectConve
             </div>
             <h3 className="font-semibold text-lg mb-2">Nenhuma conversa</h3>
             <p className="text-sm text-muted-foreground max-w-xs">
-              {filterInstanceName
+              {filterInstanceId
                 ? "Nenhuma conversa encontrada para esta instância"
                 : "As conversas aparecerão aqui quando você receber mensagens"}
             </p>

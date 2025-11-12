@@ -6,7 +6,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const supabase = await createClient()
     const { id } = await params
 
-    const { data: aiAgent, error } = await supabase.from("ai_agents").select("*").eq("instance_id", id).single()
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { data: aiAgent, error } = await supabase
+      .from("ai_agents")
+      .select("*")
+      .eq("instance_id", id)
+      .eq("user_id", user.id)
+      .single()
 
     if (error) throw error
 
@@ -23,10 +37,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params
     const { name, system_prompt, model, temperature, max_tokens, is_active } = await request.json()
 
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { data: aiAgent, error } = await supabase
       .from("ai_agents")
       .insert({
         instance_id: id,
+        user_id: user.id,
         name,
         system_prompt,
         model,
@@ -52,6 +76,15 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     const { id } = await params
     const { name, system_prompt, model, temperature, max_tokens, is_active } = await request.json()
 
+    const {
+      data: { user },
+      error: authError,
+    } = await supabase.auth.getUser()
+
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
     const { data: aiAgent, error } = await supabase
       .from("ai_agents")
       .update({
@@ -64,6 +97,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
         updated_at: new Date().toISOString(),
       })
       .eq("instance_id", id)
+      .eq("user_id", user.id)
       .select()
       .single()
 
