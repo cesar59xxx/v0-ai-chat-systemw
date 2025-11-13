@@ -62,26 +62,39 @@ export async function POST(request: Request) {
     if (instanceError) throw instanceError
 
     try {
-      console.log("[v0] Calling webhook with:", { name: instance.name, instanceId: instance.id })
+      const webhookUrl = "https://n8n-n8n.bkrnx7.easypanel.host/webhook/criando-instancia-whatsapp"
+      const webhookPayload = { name: instance.name, instanceId: instance.id }
 
-      const webhookResponse = await fetch("https://n8n-n8n.sfxb4x.easypanel.host/webhook/criando-instancia-whatsapp", {
+      console.log("[v0] ===========================================")
+      console.log("[v0] Calling n8n webhook to create instance")
+      console.log("[v0] URL:", webhookUrl)
+      console.log("[v0] Payload:", JSON.stringify(webhookPayload))
+      console.log("[v0] ===========================================")
+
+      const webhookResponse = await fetch(webhookUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: instance.name, instanceId: instance.id }),
+        body: JSON.stringify(webhookPayload),
+        signal: AbortSignal.timeout(30000), // 30 second timeout
       })
 
       console.log("[v0] Webhook response status:", webhookResponse.status)
+      console.log(
+        "[v0] Webhook response headers:",
+        JSON.stringify(Object.fromEntries(webhookResponse.headers.entries())),
+      )
 
       if (webhookResponse.ok) {
         // Try to read as text first
         const responseText = await webhookResponse.text()
-        console.log("[v0] Webhook response (first 100 chars):", responseText.substring(0, 100))
+        console.log("[v0] Webhook response length:", responseText.length)
+        console.log("[v0] Webhook response (first 200 chars):", responseText.substring(0, 200))
 
         let qrCodeData = null
 
         // Check if response is a data URL (starts with "data:")
         if (responseText.startsWith("data:")) {
-          console.log("[v0] Response is a data URL")
+          console.log("[v0] Response is a data URL (image)")
           qrCodeData = responseText
         } else {
           // Try to parse as JSON
@@ -94,35 +107,52 @@ export async function POST(request: Request) {
 
             // If it's a base64 string without data URL prefix, add it
             if (qrCodeData && !qrCodeData.startsWith("data:")) {
+              console.log("[v0] Adding data URL prefix to base64")
               qrCodeData = `data:image/png;base64,${qrCodeData}`
             }
           } catch (jsonError) {
-            console.error("[v0] Response is not JSON, treating as base64:", jsonError)
+            console.error("[v0] Response is not JSON:", jsonError)
             // Assume it's raw base64
-            qrCodeData = `data:image/png;base64,${responseText}`
+            if (responseText.length > 100) {
+              console.log("[v0] Treating as raw base64 string")
+              qrCodeData = `data:image/png;base64,${responseText}`
+            }
           }
         }
 
         if (qrCodeData) {
-          console.log("[v0] Saving QR code to database (length:", qrCodeData.length, ")")
+          console.log("[v0] QR code data found, length:", qrCodeData.length)
           const { error: updateError } = await supabase
             .from("instances")
             .update({ qr_code: qrCodeData })
             .eq("id", instance.id)
 
           if (updateError) {
-            console.error("[v0] Error updating QR code:", updateError)
+            console.error("[v0] Error updating QR code in database:", updateError)
           } else {
-            console.log("[v0] QR code saved successfully")
+            console.log("[v0] ✅ QR code saved successfully to database")
           }
         } else {
-          console.log("[v0] No QR code data found in response")
+          console.log("[v0] ⚠️ No QR code data found in webhook response")
         }
       } else {
-        console.error("[v0] Webhook returned error status:", webhookResponse.status)
+        const errorText = await webhookResponse.text()
+        console.error("[v0] ❌ Webhook returned error status:", webhookResponse.status)
+        console.error("[v0] Error response:", errorText)
       }
     } catch (webhookError) {
-      console.error("[v0] Error calling webhook:", webhookError)
+      console.error("[v0] ❌ Error calling webhook:", webhookError)
+      console.error(
+        "[v0] Error type:",
+        webhookError instanceof Error ? webhookError.constructor.name : typeof webhookError,
+      )
+      console.error("[v0] Error message:", webhookError instanceof Error ? webhookError.message : String(webhookError))
+
+      // Check if it's a timeout error
+      if (webhookError instanceof Error && webhookError.name === "AbortError") {
+        console.error("[v0] ⏱️ Webhook request timed out after 30 seconds")
+      }
+
       // Continue even if webhook fails - user can regenerate QR code later
     }
 
